@@ -11,7 +11,6 @@ import { registerReviewRoute } from "./routes/review";
 import { registerUseRemoteRoute } from "./routes/useRemote";
 import { registerWorkspaceFileRoute } from "./routes/workspaceFile";
 import { resolveFrontendDistPath } from "./frontendAssets";
-import { BranchPollingService } from "./services/pollingService";
 
 export interface ServerContext {
   repoRoot: string;
@@ -19,10 +18,7 @@ export interface ServerContext {
 
 export function createServer(context: ServerContext): Express {
   const app = express();
-  const branchPollingService = new BranchPollingService(context.repoRoot);
   const frontendDistPath = resolveFrontendDistPath(import.meta.url);
-
-  branchPollingService.start();
 
   app.use(express.json());
 
@@ -34,14 +30,14 @@ export function createServer(context: ServerContext): Express {
   });
 
   registerRepoSummaryRoute(app, context.repoRoot);
-  registerBranchesRoute(app, branchPollingService);
-  registerBranchActionsRoute(app, context.repoRoot, branchPollingService);
+  registerBranchesRoute(app, context.repoRoot);
+  registerBranchActionsRoute(app, context.repoRoot);
   registerDiffTreeRoute(app, context.repoRoot);
   registerDiffFileRoute(app, context.repoRoot);
   registerWorkspaceFileRoute(app, context.repoRoot);
   registerReviewRoute(app, context.repoRoot);
   registerUseRemoteRoute(app, context.repoRoot);
-  registerRefreshRoute(app, branchPollingService);
+  registerRefreshRoute(app, context.repoRoot);
 
   if (frontendDistPath) {
     app.use(express.static(frontendDistPath));

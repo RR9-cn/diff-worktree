@@ -224,4 +224,58 @@ describe("DiffTreePane", () => {
       screen.getByText("The workspace currently matches main. Switch branches or make edits to inspect a new diff."),
     ).toBeInTheDocument();
   });
+
+  it("puts copy absolute path first in a file's context menu and keeps the remote action after it", () => {
+    const onCopyAbsolutePath = vi.fn();
+    const onUseRemote = vi.fn();
+    const { container } = render(
+      <DiffTreePane
+        loading={false}
+        nodes={[{ path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" }]}
+        onCopyAbsolutePath={onCopyAbsolutePath}
+        onSelectFile={vi.fn()}
+        onUseRemote={onUseRemote}
+        selectedBranch="main"
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "a.ts" }));
+
+    const menu = container.querySelector(".context-menu") as HTMLElement;
+    expect(Array.from(menu.querySelectorAll(".context-menu-item")).map((item) => item.textContent)).toEqual([
+      "Copy absolute path",
+      "Use Remote",
+    ]);
+
+    fireEvent.click(within(menu).getByText("Copy absolute path"));
+
+    expect(onCopyAbsolutePath).toHaveBeenCalledWith("src/a.ts");
+    expect(onUseRemote).not.toHaveBeenCalled();
+    expect(container.querySelector(".context-menu")).not.toBeInTheDocument();
+  });
+
+  it("offers the copy action on directories too, without the file-only remote action", () => {
+    const onCopyAbsolutePath = vi.fn();
+    const { container } = render(
+      <DiffTreePane
+        loading={false}
+        nodes={[{ path: "src", name: "src", type: "directory", children: [] }]}
+        onCopyAbsolutePath={onCopyAbsolutePath}
+        onSelectFile={vi.fn()}
+        onUseRemote={vi.fn()}
+        selectedBranch="main"
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "src" }));
+
+    const menu = container.querySelector(".context-menu") as HTMLElement;
+    expect(Array.from(menu.querySelectorAll(".context-menu-item")).map((item) => item.textContent)).toEqual([
+      "Copy absolute path",
+    ]);
+
+    fireEvent.click(within(menu).getByText("Copy absolute path"));
+
+    expect(onCopyAbsolutePath).toHaveBeenCalledWith("src");
+  });
 });

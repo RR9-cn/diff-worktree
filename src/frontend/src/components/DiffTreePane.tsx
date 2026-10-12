@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent, MutableRefObject } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent, MutableRefObject } from "react";
 import { ChevronRight, File } from "lucide-react";
 
 import type { DiffTreeNode } from "../types";
@@ -13,6 +13,7 @@ interface DiffTreePaneProps {
   selectedPath?: string;
   selectedFilePath?: string;
   selectedBranch?: string;
+  onCopyAbsolutePath?: (filePath: string) => void;
   onSelectFile: (filePath: string) => void;
   onSelectItem?: (node: DiffTreeNode) => void;
   onUseRemote?: (filePath: string) => void;
@@ -29,7 +30,7 @@ interface VisibleTreeNode {
 interface ContextMenuState {
   x: number;
   y: number;
-  filePath: string;
+  node: DiffTreeNode;
 }
 
 function TreeEmptyState({ branchName }: { branchName?: string }) {
@@ -188,6 +189,7 @@ export function DiffTreePane({
   selectedPath,
   selectedFilePath,
   selectedBranch,
+  onCopyAbsolutePath,
   onSelectFile,
   onSelectItem,
   onUseRemote,
@@ -268,6 +270,13 @@ export function DiffTreePane({
       }
       return next;
     });
+  }
+
+  function handleContextMenu(event: MouseEvent<HTMLButtonElement>, node: DiffTreeNode) {
+    event.preventDefault();
+    // Keep the window-level "contextmenu" closer from shutting the menu we are opening.
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY, node });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, item: VisibleTreeNode) {
@@ -388,15 +397,7 @@ export function DiffTreePane({
                     aria-label={isDirectory ? item.displayName : itemAriaLabel(item.node)}
                     className={`tree-entry${isDirectory ? " tree-entry-directory" : " tree-entry-file"}${selected ? " tree-entry-selected" : ""}`}
                     onClick={() => handleSelect(item.node)}
-                    onContextMenu={
-                      !isDirectory && onUseRemote
-                        ? (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setContextMenu({ x: event.clientX, y: event.clientY, filePath: item.node.path });
-                          }
-                        : undefined
-                    }
+                    onContextMenu={(event) => handleContextMenu(event, item.node)}
                     onKeyDown={(event) => handleKeyDown(event, item)}
                     ref={(element) => {
                       if (element) {
@@ -418,9 +419,6 @@ export function DiffTreePane({
                         <span className={`tree-file-label${highlightFile ? " tree-file-label-highlight" : ""}`}>
                           {isDirectory ? item.displayName : item.node.name}
                         </span>
-                        {!isDirectory && item.node.changeType === "renamed" && item.node.oldPath ? (
-                          <span className="tree-file-hint">renamed from {item.node.oldPath}</span>
-                        ) : null}
                       </span>
                     </span>
                   </button>
@@ -435,21 +433,35 @@ export function DiffTreePane({
           </div>
         ) : null}
       </div>
-      {contextMenu && onUseRemote ? (
+      {contextMenu ? (
         <div
           className="context-menu"
           style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y }}
         >
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              onUseRemote(contextMenu.filePath);
-              setContextMenu(null);
-            }}
-            type="button"
-          >
-            Use Remote
-          </button>
+          {onCopyAbsolutePath ? (
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                onCopyAbsolutePath(contextMenu.node.path);
+                setContextMenu(null);
+              }}
+              type="button"
+            >
+              Copy absolute path
+            </button>
+          ) : null}
+          {contextMenu.node.type === "file" && onUseRemote ? (
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                onUseRemote(contextMenu.node.path);
+                setContextMenu(null);
+              }}
+              type="button"
+            >
+              Use Remote
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>

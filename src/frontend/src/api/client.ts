@@ -31,11 +31,11 @@ export function getDiffFile(baseBranch: string, filePath: string) {
   );
 }
 
-export function saveWorkspaceFile(path: string, content: string) {
-  return requestJson<{ path: string; saved: true }>("/api/workspace-file", {
+export function saveWorkspaceFile(baseBranch: string, path: string, content: string) {
+  return requestJson<{ path: string; saved: true; reviewHash?: string }>("/api/workspace-file", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ path, content }),
+    body: JSON.stringify({ baseBranch, path, content }),
   });
 }
 

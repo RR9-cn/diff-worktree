@@ -149,8 +149,13 @@ body {
   animation: ghost-button-spin 0.9s linear infinite;
 }
 
-.ghost-button:disabled {
+/* 复合选择器是为了压过下面的 .ghost-button:disabled：禁用分"暂时在忙"和"操作不可用"两种，只有前者该给忙光标 */
+.ghost-button:disabled.ghost-button-spinning {
   cursor: wait;
+}
+
+.ghost-button:disabled {
+  cursor: not-allowed;
   opacity: 0.65;
 }
 
@@ -549,8 +554,7 @@ body {
   accent-color: #0f6c0f;
 }
 
-.tree-row-reviewed .tree-file-label,
-.tree-row-reviewed .tree-file-hint {
+.tree-row-reviewed .tree-file-label {
   color: #8a8a8a;
 }
 
@@ -631,15 +635,6 @@ body {
 
 .tree-file-label-highlight {
   color: #c50f1f;
-}
-
-.tree-file-hint {
-  color: #616161;
-  font-size: 11px;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .tree-file-status-added {
@@ -741,6 +736,13 @@ body {
   white-space: nowrap;
 }
 
+/* 包一层把 pill 与两个按钮捆成一组：.diff-meta 是 space-between，直接摊开它们会被拆到整行两端 */
+.diff-meta-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .diff-editor-shell {
   flex: 1 1 auto;
   min-height: 0;
@@ -801,13 +803,5 @@ body {
 
   .pane-body-diff {
     min-height: 420px;
-  }
-
-  .tree-file-content {
-    flex-wrap: wrap;
-  }
-
-  .tree-file-hint {
-    white-space: normal;
   }
 }

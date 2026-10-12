@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,42 +44,73 @@ function makeBranchLists(localBranches = [makeLocalBranch("main")]) {
   return localBranches;
 }
 
+const diffViewerRenders = vi.hoisted(() => ({
+  states: [] as { loading: boolean; hasDiff: boolean }[],
+}));
+
+// Drain the promise chain a fetch kicks off. A single act() pass only settles
+// one microtask turn, so intermediate renders (and the effect they schedule)
+// would otherwise be missed and an assertion could pass on a stale snapshot.
+async function settle() {
+  for (let pass = 0; pass < 8; pass += 1) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+}
+
 vi.mock("./components/DiffViewerPane", () => ({
   DiffViewerPane: ({
     diffFile,
     draftContent,
     loading,
     onDraftChange,
+    onToggleShowWholeFile,
+    showWholeFile,
   }: {
     diffFile: { left: string; changeType: string } | null;
     draftContent: string;
     loading: boolean;
     onDraftChange: (next: string) => void;
-  }) => (
-    <div>
-      <div data-testid="diff-editor">{`${diffFile?.left ?? ""} => ${draftContent}`}</div>
-      <input
-        data-testid="draft-input-proxy"
-        disabled={loading || diffFile?.changeType === "deleted"}
-        value={draftContent}
-        onChange={(event) => onDraftChange(event.target.value)}
-      />
-    </div>
-  ),
+    onToggleShowWholeFile: () => void;
+    showWholeFile: boolean;
+  }) => {
+    diffViewerRenders.states.push({ loading, hasDiff: diffFile !== null });
+
+    return (
+      <div>
+        <div data-testid="diff-editor">{`${diffFile?.left ?? ""} => ${draftContent}`}</div>
+        <button
+          data-show-whole-file={String(showWholeFile)}
+          data-testid="whole-file-proxy"
+          onClick={onToggleShowWholeFile}
+          type="button"
+        >
+          whole file
+        </button>
+        <input
+          data-testid="draft-input-proxy"
+          disabled={loading || diffFile?.changeType === "deleted"}
+          value={draftContent}
+          onChange={(event) => onDraftChange(event.target.value)}
+        />
+      </div>
+    );
+  },
 }));
 
 describe("App", () => {
   beforeEach(() => {
+    diffViewerRenders.states.length = 0;
     api.getRepoSummary.mockResolvedValue({
       repoRoot: "/repo",
       homeDir: "/Users/diamondyuan",
       currentBranch: "main",
       defaultSelectedBranch: "main",
-      branchPollIntervalMs: 60000,
     });
     api.getBranches.mockResolvedValue(makeBranchLists());
     api.refreshRepo.mockResolvedValue(makeBranchLists());
-    api.saveWorkspaceFile.mockResolvedValue({ path: "src/a.ts", saved: true });
+    api.saveWorkspaceFile.mockResolvedValue({ path: "src/a.ts", saved: true, reviewHash: "hash-after-edit" });
     api.updateLocalBranch.mockResolvedValue(makeBranchLists());
     api.deleteLocalBranch.mockResolvedValue(makeBranchLists());
     api.useRemoteVersion.mockResolvedValue({ ok: true });
@@ -99,7 +130,6 @@ describe("App", () => {
   it("loads the initial diff once branches finish loading for a restored branch selection", async () => {
     const initialBranches = [makeLocalBranch("main")];
 
-    api.getBranches.mockImplementationOnce(() => new Promise(() => undefined));
     api.getBranches.mockResolvedValue(makeBranchLists(initialBranches));
     api.getDiffTree.mockResolvedValue([
       {
@@ -123,7 +153,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(api.getBranches).toHaveBeenCalledTimes(2);
+      expect(api.getBranches).toHaveBeenCalledTimes(1);
     });
 
     await waitFor(() => {
@@ -132,6 +162,66 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByTestId("diff-editor")).toHaveTextContent("=> hello");
     });
+  });
+
+  it("does not reload branches, the diff tree, or the open diff when the poll interval elapses", async () => {
+    api.getDiffTree.mockResolvedValue([
+      {
+        path: "src",
+        name: "src",
+        type: "directory",
+        children: [{ path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" }],
+      },
+    ]);
+    api.getDiffFile.mockResolvedValue({
+      path: "src/a.ts",
+      changeType: "modified",
+      language: "ts",
+      left: "old a",
+      right: "new a",
+      isBinary: false,
+      tooLarge: false,
+    });
+
+    // The second branch load (the poll) must stay in flight across an act
+    // boundary. A mock that resolves immediately would let React batch the
+    // loading flip into a no-op, hiding the tear-down the browser really does.
+    let releasePoll: (() => void) | undefined;
+    api.getBranches
+      .mockResolvedValueOnce(makeBranchLists())
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releasePoll = () => resolve(makeBranchLists());
+          }),
+      );
+
+    vi.useFakeTimers();
+    render(<App />);
+    await settle();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    await act(async () => {
+      releasePoll?.();
+    });
+    await settle();
+    vi.useRealTimers();
+
+    // The reader-visible contract: once the diff is on screen, no later render
+    // may send it back to a loading or empty state. Those states unmount the
+    // Monaco editor, which is what throws the reader's scroll position away.
+    const states = diffViewerRenders.states;
+    const shownAt = states.findIndex((state) => state.hasDiff && !state.loading);
+    expect(shownAt).toBeGreaterThanOrEqual(0);
+    expect(states.slice(shownAt + 1).filter((state) => state.loading || !state.hasDiff)).toEqual([]);
+
+    // And the underlying cause: no reload may be triggered behind the user.
+    expect(api.getBranches).toHaveBeenCalledTimes(1);
+    expect(api.getDiffTree).toHaveBeenCalledTimes(1);
+    expect(api.getDiffFile).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("diff-editor")).toHaveTextContent("old a => new a");
   });
 
   it("keeps the selected file after a manual refresh when the file still exists", async () => {
@@ -191,8 +281,8 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("renamed from src/old-b.ts");
-    await userEvent.click(screen.getByRole("button", { name: "b.ts (renamed from src/old-b.ts)" }));
+    await userEvent.click(await screen.findByRole("button", { name: "b.ts (renamed from src/old-b.ts)" }));
+    expect(screen.queryByText("renamed from src/old-b.ts")).toBeNull();
     await screen.findByText("old b => new b");
 
     await userEvent.click(screen.getByRole("button", { name: /refresh/i }));
@@ -378,6 +468,110 @@ describe("App", () => {
     });
   });
 
+  it("restores and persists the whole-file preference from local storage", async () => {
+    window.localStorage.setItem("diff-worktree:show-whole-file", "true");
+    api.getDiffTree.mockResolvedValue([
+      {
+        path: "src",
+        name: "src",
+        type: "directory",
+        children: [{ path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" }],
+      },
+    ]);
+    api.getDiffFile.mockResolvedValue({
+      path: "src/a.ts",
+      changeType: "modified",
+      language: "ts",
+      left: "old a",
+      right: "new a",
+      isBinary: false,
+      tooLarge: false,
+    });
+
+    render(<App />);
+
+    await screen.findByText("old a => new a");
+    expect(screen.getByTestId("whole-file-proxy")).toHaveAttribute("data-show-whole-file", "true");
+
+    await userEvent.click(screen.getByTestId("whole-file-proxy"));
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("diff-worktree:show-whole-file")).toBe("false");
+    });
+  });
+
+  it("copies the absolute path of a tree entry using the repository's own separator", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    api.getRepoSummary.mockResolvedValue({
+      repoRoot: "C:\\work\\repo",
+      homeDir: "C:\\Users\\me",
+      currentBranch: "main",
+      defaultSelectedBranch: "main",
+    });
+    api.getDiffTree.mockResolvedValue([
+      { path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" },
+    ]);
+    api.getDiffFile.mockResolvedValue({
+      path: "src/a.ts",
+      changeType: "modified",
+      language: "ts",
+      left: "old a",
+      right: "new a",
+      isBinary: false,
+      tooLarge: false,
+    });
+
+    render(<App />);
+
+    fireEvent.contextMenu(await screen.findByRole("button", { name: "a.ts" }));
+    fireEvent.click(screen.getByText("Copy absolute path"));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("C:\\work\\repo\\src\\a.ts");
+    });
+  });
+
+  it("titles the page with the repository being reviewed", async () => {
+    document.title = "diff-worktree";
+    api.getRepoSummary.mockResolvedValue({
+      repoRoot: "C:\\work\\project\\tmu-mobile",
+      homeDir: "C:\\Users\\me",
+      currentBranch: "main",
+      defaultSelectedBranch: "main",
+    });
+    api.getDiffTree.mockResolvedValue([]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.title).toBe("tmu-mobile");
+    });
+  });
+
+  it("explains that copying needs a secure context when the clipboard is unavailable", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    api.getDiffTree.mockResolvedValue([
+      { path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" },
+    ]);
+    api.getDiffFile.mockResolvedValue({
+      path: "src/a.ts",
+      changeType: "modified",
+      language: "ts",
+      left: "old a",
+      right: "new a",
+      isBinary: false,
+      tooLarge: false,
+    });
+
+    render(<App />);
+
+    fireEvent.contextMenu(await screen.findByRole("button", { name: "a.ts" }));
+    fireEvent.click(screen.getByText("Copy absolute path"));
+
+    expect(await screen.findByText(/secure context/i)).toBeInTheDocument();
+  });
+
   it("autosaves only the latest draft after 500ms of idle time", async () => {
     api.getDiffTree.mockResolvedValue([
       {
@@ -420,9 +614,58 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(api.saveWorkspaceFile).toHaveBeenCalledTimes(1);
-      expect(api.saveWorkspaceFile).toHaveBeenCalledWith("src/a.ts", "new a!?");
+      expect(api.saveWorkspaceFile).toHaveBeenCalledWith("main", "src/a.ts", "new a!?");
       expect(api.getDiffFile).toHaveBeenLastCalledWith("main", "src/a.ts");
     });
+  });
+
+  it("drops a file's reviewed flag after its edit is autosaved, without rebuilding the tree", async () => {
+    api.getDiffTree.mockResolvedValue([
+      {
+        path: "src",
+        name: "src",
+        type: "directory",
+        children: [
+          {
+            path: "src/a.ts",
+            name: "a.ts",
+            type: "file",
+            changeType: "modified",
+            reviewHash: "hash-before-edit",
+            reviewed: true,
+          },
+        ],
+      },
+    ]);
+    api.getDiffFile.mockResolvedValue({
+      path: "src/a.ts",
+      changeType: "modified",
+      language: "ts",
+      left: "old a",
+      right: "new a",
+      isBinary: false,
+      tooLarge: false,
+    });
+
+    render(<App />);
+
+    await screen.findByText("old a => new a");
+    expect(screen.getByRole("checkbox", { name: "Mark a.ts as reviewed" })).toBeChecked();
+    expect(screen.getByText("1/1 reviewed")).toBeInTheDocument();
+
+    const input = await screen.findByTestId("draft-input-proxy");
+    vi.useFakeTimers();
+    fireEvent.change(input, { target: { value: "new a edited" } });
+    await vi.advanceTimersByTimeAsync(500);
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: "Mark a.ts as reviewed" })).not.toBeChecked();
+    });
+    expect(screen.getByText("0/1 reviewed")).toBeInTheDocument();
+    expect(api.saveWorkspaceFile).toHaveBeenCalledWith("main", "src/a.ts", "new a edited");
+    // A full tree reload would blank the editor and throw the reader's scroll position away.
+    expect(api.getDiffTree).toHaveBeenCalledTimes(1);
   });
 
   it("cancels a pending autosave when the user switches files before debounce fires", async () => {

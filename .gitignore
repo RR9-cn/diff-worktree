@@ -8,3 +8,4 @@ src/frontend/vite.config.js
 src/frontend/vite.config.d.ts
 .idea/
 .pnpm-store/
+.workbuddy/

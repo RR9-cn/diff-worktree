@@ -10,7 +10,6 @@ export interface RepoSummary {
   homeDir: string;
   currentBranch: string;
   defaultSelectedBranch: string;
-  branchPollIntervalMs: number;
 }
 
 export interface BranchStatus {
@@ -38,7 +37,9 @@ export interface DiffTreeNode {
   changeType?: ChangeType;
   oldPath?: string;
   children?: DiffTreeNode[];
+  // md5 over (repoRoot, path, base content, workspace content); only on files.
   reviewHash?: string;
+  // True when reviewHash matches the locally persisted reviewed hash.
   reviewed?: boolean;
 }
 

@@ -8,8 +8,6 @@ import type { BranchStatus, RepoSummary, SyncStatus } from "../../shared/types";
 
 const execFileAsync = promisify(execFile);
 
-export const BRANCH_POLL_INTERVAL_MS = 60_000;
-
 async function runGit(repoRoot: string, args: string[]) {
   const { stdout } = await execFileAsync("git", args, {
     cwd: repoRoot,
@@ -74,7 +72,6 @@ export async function getRepoSummary(repoRoot: string): Promise<RepoSummary> {
     homeDir: os.homedir(),
     currentBranch,
     defaultSelectedBranch: currentBranch,
-    branchPollIntervalMs: BRANCH_POLL_INTERVAL_MS,
   };
 }
 
@@ -169,6 +166,17 @@ export async function listLocalBranches(repoRoot: string): Promise<BranchStatus[
 
 export async function listBranches(repoRoot: string): Promise<BranchStatus[]> {
   return listLocalBranches(repoRoot);
+}
+
+export async function refreshBranches(
+  repoRoot: string,
+  options?: { syncRemotes?: boolean },
+): Promise<BranchStatus[]> {
+  if (options?.syncRemotes) {
+    await fetchRemotes(repoRoot);
+  }
+
+  return listBranches(repoRoot);
 }
 
 async function getBranchUpstreamConfig(repoRoot: string, branchName: string) {

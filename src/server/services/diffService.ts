@@ -26,7 +26,9 @@ interface FileReadResult {
 }
 
 async function runGit(repoRoot: string, args: string[]) {
-  const { stdout } = await execFileAsync("git", args, {
+  // git escapes non-ASCII paths (业务 -> \344\270\232) unless quotePath is off,
+  // and the escaped form leaks into tree names, file reads and review keys.
+  const { stdout } = await execFileAsync("git", ["-c", "core.quotePath=false", ...args], {
     cwd: repoRoot,
   });
 
@@ -302,13 +304,30 @@ export async function listDiffTree(repoRoot: string, baseBranch: string): Promis
   return toTree(roots);
 }
 
+async function findEntry(repoRoot: string, baseBranch: string, targetPath: string) {
+  const entries = await listDiffEntries(repoRoot, baseBranch);
+  return entries.find((item) => item.path === targetPath);
+}
+
+// Undefined once the saved content matches the base branch again: the file then leaves the diff, so
+// there is no reviewed state left to key a checkbox on.
+export async function getReviewHash(repoRoot: string, baseBranch: string, targetPath: string) {
+  const entry = await findEntry(repoRoot, baseBranch, targetPath);
+
+  if (!entry) {
+    return undefined;
+  }
+
+  const { left, right } = await readEntryDiff(repoRoot, baseBranch, entry);
+  return computeReviewHash(repoRoot, baseBranch, entry, left.content, right.content);
+}
+
 export async function getDiffFile(
   repoRoot: string,
   baseBranch: string,
   targetPath: string,
 ): Promise<DiffFilePayload> {
-  const entries = await listDiffEntries(repoRoot, baseBranch);
-  const entry = entries.find((item) => item.path === targetPath);
+  const entry = await findEntry(repoRoot, baseBranch, targetPath);
 
   if (!entry) {
     throw new Error(`No diff entry found for ${targetPath}.`);

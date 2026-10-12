@@ -20,6 +20,7 @@ import { DEFAULT_HIGHLIGHT_FILE_PATTERNS } from "./utils/highlightPatterns";
 
 const SESSION_SELECTED_BRANCH_KEY = "diff-worktree:selected-branch";
 const SESSION_SELECTED_FILE_KEY = "diff-worktree:selected-file";
+const LOCAL_SHOW_WHOLE_FILE_KEY = "diff-worktree:show-whole-file";
 const LOCAL_HIGHLIGHT_FILES_ENABLED_KEY = "diff-worktree:highlight-files-enabled";
 const LOCAL_HIGHLIGHT_FILE_PATTERNS_KEY = "diff-worktree:highlight-file-patterns";
 const LEGACY_LOCAL_HIGHLIGHT_TEST_FILES_KEY = "diff-worktree:highlight-test-files";
@@ -109,6 +110,21 @@ function writeLocalStringArray(key: string, value: string[]) {
   }
 }
 
+// repoRoot comes from node's path.resolve (backslashes on Windows) while node.path is git output
+// (always forward slashes), so a plain join would hand the user a mixed-separator path.
+function toAbsolutePath(repoRoot: string, filePath: string) {
+  if (repoRoot.includes("\\")) {
+    return `${repoRoot}\\${filePath.replace(/\//g, "\\")}`;
+  }
+
+  return `${repoRoot}/${filePath}`;
+}
+
+// repoRoot is reported with native separators, so both kinds have to be split on.
+function repoNameFromPath(repoRoot: string) {
+  return repoRoot.split(/[\\/]/).filter(Boolean).pop();
+}
+
 function findFirstFile(nodes: DiffTreeNode[]): string | undefined {
   for (const node of nodes) {
     if (node.type === "file") {
@@ -160,6 +176,22 @@ function hasNode(nodes: DiffTreeNode[], targetPath: string | undefined): boolean
   return false;
 }
 
+// The tree keys each checkbox on reviewHash, so re-targeting the saved file's node is enough to drop
+// a stale "reviewed" tick; refetching the tree instead would blank the open editor.
+function applyReviewHash(
+  nodes: DiffTreeNode[],
+  targetPath: string,
+  reviewHash: string | undefined,
+): DiffTreeNode[] {
+  return nodes.map((node) => {
+    if (node.type === "directory") {
+      return { ...node, children: applyReviewHash(node.children ?? [], targetPath, reviewHash) };
+    }
+
+    return node.path === targetPath ? { ...node, reviewHash, reviewed: false } : node;
+  });
+}
+
 export function App() {
   const [summary, setSummary] = useState<RepoSummary | null>(null);
   const [localBranches, setLocalBranches] = useState<BranchStatus[]>([]);
@@ -176,6 +208,7 @@ export function App() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [treeReloadNonce, setTreeReloadNonce] = useState(0);
   const [diffReloadNonce, setDiffReloadNonce] = useState(0);
+  const [showWholeFile, setShowWholeFile] = useState(() => readLocalBoolean(LOCAL_SHOW_WHOLE_FILE_KEY));
   const [highlightFilesEnabled, setHighlightFilesEnabled] = useState(() =>
     readLocalBoolean(
       LOCAL_HIGHLIGHT_FILES_ENABLED_KEY,
@@ -232,12 +265,19 @@ export function App() {
     };
   }, []);
 
+  // The tab names the repository under review; index.html keeps the tool name until the summary lands.
+  useEffect(() => {
+    const repoName = summary ? repoNameFromPath(summary.repoRoot) : undefined;
+
+    if (repoName) {
+      document.title = repoName;
+    }
+  }, [summary]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadBranches() {
-      setBranchesLoading(true);
-
       try {
         const branches = await getBranches();
         if (!cancelled) {
@@ -256,15 +296,11 @@ export function App() {
     }
 
     void loadBranches();
-    const timer = window.setInterval(() => {
-      void loadBranches();
-    }, summary?.branchPollIntervalMs ?? 60_000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
     };
-  }, [summary?.branchPollIntervalMs, refreshNonce]);
+  }, []);
 
   useEffect(() => {
     if (branchesLoading || localBranches.length === 0) {
@@ -290,6 +326,10 @@ export function App() {
   useEffect(() => {
     writeSessionValue(SESSION_SELECTED_FILE_KEY, selectedFilePath);
   }, [selectedFilePath]);
+
+  useEffect(() => {
+    writeLocalBoolean(LOCAL_SHOW_WHOLE_FILE_KEY, showWholeFile);
+  }, [showWholeFile]);
 
   useEffect(() => {
     writeLocalBoolean(LOCAL_HIGHLIGHT_FILES_ENABLED_KEY, highlightFilesEnabled);
@@ -412,7 +452,7 @@ export function App() {
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          await saveWorkspaceFile(activeFilePath, activeDraftContent);
+          const payload = await saveWorkspaceFile(activeBranch, activeFilePath, activeDraftContent);
           if (
             selectedBranchRef.current !== activeBranch ||
             selectedFilePathRef.current !== activeFilePath ||
@@ -422,6 +462,7 @@ export function App() {
           }
 
           setPersistedContent(activeDraftContent);
+          setDiffTree((current) => applyReviewHash(current, activeFilePath, payload.reviewHash));
           setError(undefined);
         } catch (saveError) {
           if (
@@ -453,6 +494,25 @@ export function App() {
       setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh repository state.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function handleCopyAbsolutePath(filePath: string) {
+    if (!navigator.clipboard) {
+      setError("Copying needs a secure context: open the tool on the localhost URL it printed, not a network address.");
+      return;
+    }
+
+    if (!summary?.repoRoot) {
+      setError("Cannot resolve the absolute path before the repository is loaded.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(toAbsolutePath(summary.repoRoot, filePath));
+      setError(undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to copy the absolute path.");
     }
   }
 
@@ -521,6 +581,10 @@ export function App() {
     setDraftVersion((current) => current + 1);
   }
 
+  function handleToggleShowWholeFile() {
+    setShowWholeFile((current) => !current);
+  }
+
   return (
     <main className="app-shell">
       <BranchPane
@@ -545,6 +609,7 @@ export function App() {
         highlightFilesEnabled={highlightFilesEnabled}
         loading={treeLoading}
         nodes={diffTree}
+        onCopyAbsolutePath={handleCopyAbsolutePath}
         onSelectFile={setSelectedFilePath}
         onSelectItem={handleSelectTreeItem}
         onToggleReview={handleToggleReview}
@@ -558,7 +623,9 @@ export function App() {
         draftContent={draftContent}
         loading={diffLoading}
         onDraftChange={handleDraftChange}
+        onToggleShowWholeFile={handleToggleShowWholeFile}
         selectedBranch={selectedBranch}
+        showWholeFile={showWholeFile}
       />
       {error ? <div className="global-error">{error}</div> : null}
     </main>

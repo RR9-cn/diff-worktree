@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getDiffFile, listDiffTree } from "../src/server/services/diffService";
+import { getDiffFile, getReviewHash, listDiffTree } from "../src/server/services/diffService";
 import type { DiffTreeNode } from "../src/shared/types";
 
 const createdDirs: string[] = [];
@@ -92,6 +92,19 @@ describe("getDiffFile", () => {
     });
   });
 
+  it("reads content for a file whose path contains non-ASCII characters", async () => {
+    const repoRoot = createRepo();
+    commitFile(repoRoot, "docs/需求说明.md", "第一版\n", "docs: base");
+    fs.writeFileSync(path.join(repoRoot, "docs/需求说明.md"), "第二版\n");
+
+    await expect(getDiffFile(repoRoot, "main", "docs/需求说明.md")).resolves.toMatchObject({
+      path: "docs/需求说明.md",
+      changeType: "modified",
+      left: "第一版\n",
+      right: "第二版\n",
+    });
+  });
+
   it("returns submodule commit pointers instead of reading the workspace directory", async () => {
     const submoduleRoot = createRepo();
     commitFile(submoduleRoot, "entry.txt", "base\n", "feat: base entry");
@@ -158,6 +171,23 @@ describe("listDiffTree", () => {
     );
   });
 
+  it("keeps non-ASCII paths verbatim in the tree instead of the git-escaped form", async () => {
+    const repoRoot = createRepo();
+    commitFile(repoRoot, "docs/需求说明.md", "第一版\n", "docs: base");
+    fs.writeFileSync(path.join(repoRoot, "docs/需求说明.md"), "第二版\n");
+    fs.mkdirSync(path.join(repoRoot, "static"), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, "static/业务报价-Mock样例.xlsx"), "报价数据\n");
+
+    const files = flattenFiles(await listDiffTree(repoRoot, "main"));
+
+    expect(files.map((node) => node.path)).toEqual(
+      expect.arrayContaining(["docs/需求说明.md", "static/业务报价-Mock样例.xlsx"]),
+    );
+    expect(files.map((node) => node.name)).toEqual(
+      expect.arrayContaining(["需求说明.md", "业务报价-Mock样例.xlsx"]),
+    );
+  });
+
   it("attaches a content-derived review hash to each file that changes with the content", async () => {
     const repoRoot = createRepo();
     commitFile(repoRoot, "src/a.ts", "export const a = 1;\n", "feat: a");
@@ -173,5 +203,19 @@ describe("listDiffTree", () => {
 
     expect(second?.reviewHash).toMatch(/^[0-9a-f]{32}$/);
     expect(second?.reviewHash).not.toBe(first?.reviewHash);
+  });
+
+  it("reports the same review hash for a file as the diff tree does, and none once it matches the base", async () => {
+    const repoRoot = createRepo();
+    commitFile(repoRoot, "src/a.ts", "export const a = 1;\n", "feat: a");
+    fs.writeFileSync(path.join(repoRoot, "src/a.ts"), "export const a = 2;\n");
+
+    const [node] = flattenFiles(await listDiffTree(repoRoot, "main")).filter(
+      (item) => item.path === "src/a.ts",
+    );
+    expect(await getReviewHash(repoRoot, "main", "src/a.ts")).toBe(node.reviewHash);
+
+    fs.writeFileSync(path.join(repoRoot, "src/a.ts"), "export const a = 1;\n");
+    expect(await getReviewHash(repoRoot, "main", "src/a.ts")).toBeUndefined();
   });
 });

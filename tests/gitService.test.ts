@@ -243,7 +243,6 @@ describe("getRepoSummary", () => {
       repoRoot,
       currentBranch: "main",
       defaultSelectedBranch: "main",
-      branchPollIntervalMs: 60000,
     });
   });
 });

@@ -199,6 +199,7 @@ export function BranchPane({
             className={`ghost-button ghost-button-icon ghost-button-plain${refreshing ? " ghost-button-spinning" : ""}`}
             disabled={loading || refreshing}
             onClick={onRefresh}
+            title={refreshing ? "Refreshing" : "Refresh"}
             type="button"
           >
             <RefreshCw aria-hidden="true" size={14} strokeWidth={1.8} />
