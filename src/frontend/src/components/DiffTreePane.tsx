@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, MutableRefObject } from "react";
 import { ChevronRight, File } from "lucide-react";
 
@@ -201,6 +201,7 @@ export function DiffTreePane({
   // stops applying once a file's content (and thus its hash) changes.
   const [reviewOverrides, setReviewOverrides] = useState<Map<string, boolean>>(new Map());
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const activePath = selectedPath ?? selectedFilePath;
   const visibleNodes = flattenVisibleNodes(nodes, collapsedPaths);
   const reviewableFiles = collectReviewableFiles(nodes);
@@ -247,6 +248,33 @@ export function DiffTreePane({
       window.removeEventListener("click", close);
       window.removeEventListener("contextmenu", close);
     };
+  }, [contextMenu]);
+
+  // The menu anchors at the cursor and grows downward; near the viewport's
+  // bottom/right edge that pushes it off-screen, so flip it above/left of the
+  // cursor once its real size is known.
+  useLayoutEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const menu = contextMenuRef.current;
+    if (!menu) {
+      return;
+    }
+
+    const rect = menu.getBoundingClientRect();
+    const overflowY = Math.max(0, rect.bottom - window.innerHeight);
+    const overflowX = Math.max(0, rect.right - window.innerWidth);
+    if (overflowY === 0 && overflowX === 0) {
+      return;
+    }
+
+    setContextMenu({
+      ...contextMenu,
+      y: overflowY > 0 ? contextMenu.y - rect.height : contextMenu.y,
+      x: overflowX > 0 ? contextMenu.x - rect.width : contextMenu.x,
+    });
   }, [contextMenu]);
 
   function handleSelect(node: DiffTreeNode) {
@@ -435,6 +463,7 @@ export function DiffTreePane({
       </div>
       {contextMenu ? (
         <div
+          ref={contextMenuRef}
           className="context-menu"
           style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y }}
         >

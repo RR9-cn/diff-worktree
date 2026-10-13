@@ -545,7 +545,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(document.title).toBe("tmu-mobile");
+      expect(document.title).toBe("review: tmu-mobile");
     });
   });
 

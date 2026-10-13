@@ -278,4 +278,54 @@ describe("DiffTreePane", () => {
 
     expect(onCopyAbsolutePath).toHaveBeenCalledWith("src");
   });
+
+  it("flips the context menu above the cursor when it would overflow the viewport bottom", () => {
+    const { container } = render(
+      <DiffTreePane
+        loading={false}
+        nodes={[{ path: "src/a.ts", name: "a.ts", type: "file", changeType: "modified" }]}
+        onCopyAbsolutePath={vi.fn()}
+        onSelectFile={vi.fn()}
+        onUseRemote={vi.fn()}
+      />,
+    );
+
+    const previousInnerHeight = window.innerHeight;
+    const previousInnerWidth = window.innerWidth;
+    window.innerHeight = 720;
+    window.innerWidth = 1280;
+    // jsdom has no layout engine, so geometry comes from inline styles instead.
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const left = parseFloat(this.style.left) || 0;
+      const top = parseFloat(this.style.top) || 0;
+
+      return {
+        x: left,
+        y: top,
+        top,
+        right: left + 140,
+        bottom: top + 56,
+        left,
+        width: 140,
+        height: 56,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+
+    try {
+      fireEvent.contextMenu(screen.getByRole("button", { name: "a.ts" }), { clientX: 400, clientY: 700 });
+
+      const menu = container.querySelector(".context-menu") as HTMLElement;
+      // 700px cursor + 56px menu would end at 756px, past the 720px viewport:
+      // the menu must flip above the cursor (700 - 56) instead.
+      expect(menu.style.top).toBe("644px");
+      expect(menu.style.left).toBe("400px");
+    } finally {
+      rectSpy.mockRestore();
+      window.innerHeight = previousInnerHeight;
+      window.innerWidth = previousInnerWidth;
+    }
+  });
 });
