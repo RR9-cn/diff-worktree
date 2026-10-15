@@ -114,6 +114,14 @@ body {
   font-size: 11px;
 }
 
+/* 分支名可长可短，表头只允许占一行，超出用省略号，完整名走 title */
+.pane-meta-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .pane-actions {
   display: inline-flex;
   align-items: center;
@@ -259,10 +267,6 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-}
-
-.branch-group .branch-item {
-  padding-left: 28px;
 }
 
 .branch-item-actions {
@@ -450,35 +454,6 @@ body {
   white-space: nowrap;
 }
 
-.branch-group-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: #616161;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 12px;
-  text-align: left;
-}
-
-.branch-group-chevron {
-  transition: transform 120ms ease;
-}
-
-.branch-group-chevron-open {
-  transform: rotate(90deg);
-}
-
-.branch-group-count {
-  color: #8a8a8a;
-  font-weight: 400;
-  margin-left: auto;
-}
-
 .pill {
   display: inline-flex;
   align-items: center;
@@ -561,6 +536,8 @@ body {
 .tree-review-progress {
   margin-left: auto;
   color: #0f6c0f;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tree-entry {

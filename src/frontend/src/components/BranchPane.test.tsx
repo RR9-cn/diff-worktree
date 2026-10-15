@@ -113,6 +113,20 @@ describe("BranchPane", () => {
     expect(screen.queryByRole("button", { name: "Update feature/no-upstream" })).not.toBeInTheDocument();
   });
 
+  it("renders branches containing a slash flat with their full name, newest first", () => {
+    const { container } = renderBranchPane({
+      localBranches: [
+        makeLocalBranch("codex/prediction-order", { lastCommitAuthorDate: "2026-03-21T00:00:00Z" }),
+        makeLocalBranch("master", { lastCommitAuthorDate: "2026-03-23T00:00:00Z" }),
+      ],
+      repoRoot: "/tmp/demo",
+    });
+
+    const names = [...container.querySelectorAll(".branch-item-name")].map((el) => el.textContent);
+    expect(names).toEqual(["master", "codex/prediction-order"]);
+    expect(container.querySelector(".branch-group-header")).not.toBeInTheDocument();
+  });
+
   it("renders a footer toggle for highlighting files", () => {
     const onHighlightFilesEnabledChange = vi.fn();
 

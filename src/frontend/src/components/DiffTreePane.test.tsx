@@ -108,6 +108,22 @@ describe("DiffTreePane", () => {
     expect(container.querySelector(".tree-directory-status")).not.toBeInTheDocument();
   });
 
+  it("keeps a long branch name in the pane header on one line and exposes it in the title", () => {
+    render(
+      <DiffTreePane
+        loading={false}
+        nodes={[]}
+        onSelectFile={vi.fn()}
+        selectedBranch="codex/prediction-order"
+        selectedFilePath=""
+      />,
+    );
+
+    const label = screen.getByTitle("codex/prediction-order vs workspace");
+    expect(label).toHaveClass("pane-meta-truncate");
+    expect(label).toHaveTextContent("codex/prediction-order vs workspace");
+  });
+
   it("does not reserve an empty file icon slot for directory rows", () => {
     render(
       <DiffTreePane

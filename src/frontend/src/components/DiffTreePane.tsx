@@ -205,6 +205,7 @@ export function DiffTreePane({
   const activePath = selectedPath ?? selectedFilePath;
   const visibleNodes = flattenVisibleNodes(nodes, collapsedPaths);
   const reviewableFiles = collectReviewableFiles(nodes);
+  const branchHeaderLabel = selectedBranch ? `${selectedBranch} vs workspace` : "no branch";
 
   function isReviewed(node: DiffTreeNode) {
     if (!node.reviewHash) {
@@ -368,7 +369,9 @@ export function DiffTreePane({
   return (
     <section className="pane">
       <header className="pane-header">
-        <span className="pane-meta">{selectedBranch ? `${selectedBranch} vs workspace` : "no branch"}</span>
+        <span className="pane-meta pane-meta-truncate" title={branchHeaderLabel}>
+          {branchHeaderLabel}
+        </span>
         {reviewableFiles.length > 0 ? (
           <span className="pane-meta tree-review-progress">
             {reviewedCount}/{reviewableFiles.length} reviewed

@@ -786,7 +786,7 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByText("old b => new b");
-    expect(screen.getByRole("button", { name: "test up to date" })).toHaveClass("branch-item-selected");
+    expect(screen.getByRole("button", { name: "feature/test up to date" })).toHaveClass("branch-item-selected");
     await waitFor(() => {
       expect(window.sessionStorage.getItem("diff-worktree:selected-branch")).toBe("feature/test");
       expect(window.sessionStorage.getItem("diff-worktree:selected-file")).toBe("src/b.ts");
