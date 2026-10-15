@@ -740,6 +740,113 @@ body {
   padding: 4px 0;
 }
 
+/* Codeup branch comparison */
+.codeup-page {
+  display: grid;
+  grid-template-rows: 60px auto minmax(0, 1fr);
+  height: 100vh;
+  min-height: 620px;
+  background: #f5f7fb;
+  color: #17243a;
+}
+
+.cloud-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #e5eaf1;
+  background: #fff;
+  padding: 0 24px;
+}
+
+.cloud-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.cloud-brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #e8f0ff; color: #2865c8; font-size: 18px; font-weight: 800; }
+.cloud-brand strong { display: block; font-size: 15px; line-height: 1.2; }
+.cloud-brand small { display: block; color: #7b8799; font-size: 11px; margin-top: 2px; }
+.cloud-topbar-status { display: flex; align-items: center; gap: 12px; color: #66758a; font-size: 12px; white-space: nowrap; }
+.cloud-readonly { color: #4772aa; border: 1px solid #d6e3fb; background: #f1f6ff; border-radius: 20px; padding: 5px 10px; }
+
+.cloud-toolbar { position: relative; z-index: 2; border-bottom: 1px solid #e5eaf1; background: #fff; padding: 16px 24px 12px; }
+.cloud-toolbar-row { display: grid; grid-template-columns: minmax(300px, 1.5fr) minmax(150px, .75fr) 20px minmax(160px, .8fr) auto; gap: 12px; align-items: end; }
+.cloud-field { display: grid; gap: 7px; min-width: 0; }
+.cloud-field label { color: #718097; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.cloud-field input, .cloud-field select, .cloud-branch-search input { width: 100%; height: 38px; min-width: 0; outline: none; border: 1px solid #dce3ec; border-radius: 7px; background: #fff; color: #17243a; padding: 0 10px; font-size: 12px; }
+.cloud-field input:focus, .cloud-field select:focus, .cloud-branch-search input:focus, .cloud-file-search:focus { border-color: #6894df; box-shadow: 0 0 0 3px #2b70d514; }
+.cloud-repository-picker { display: flex; gap: 5px; min-width: 0; }
+.cloud-repository-picker input { flex: 0 1 30%; }
+.cloud-repository-picker select { flex: 1 1 60%; }
+.cloud-repository-picker button, .cloud-branch-search button { flex: none; height: 38px; min-width: 34px; border: 1px solid #dce3ec; border-radius: 7px; background: #f7f9fc; color: #5f718a; }
+.cloud-direction { display: grid; place-items: center; height: 38px; color: #8c9bb0; font-size: 18px; }
+.cloud-compare-button { height: 38px; border: 1px solid #2159b3; border-radius: 7px; background: #2467ce; color: #fff; padding: 0 20px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 9px #2467ce23; }
+.cloud-compare-button:hover:not(:disabled) { background: #1d58b3; }
+.cloud-compare-button:disabled { cursor: not-allowed; opacity: .55; }
+.cloud-toolbar-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 25px; margin-top: 12px; color: #758298; font-size: 11px; }
+.cloud-toolbar-meta > strong { color: #23344c; font-weight: 700; }
+.cloud-toolbar-meta code { border: 1px solid #e9edf3; border-radius: 5px; background: #f3f6fa; color: #51627a; padding: 4px 7px; font-size: 10px; }
+.cloud-summary { display: flex; align-items: center; gap: 12px; margin-left: auto; white-space: nowrap; }
+.cloud-summary strong { color: #2a3a50; font-size: 12px; }
+.cloud-summary span:nth-child(2) { color: #32816a; }
+.cloud-summary span:nth-child(3) { color: #a77929; }
+.cloud-branch-search-toggle { border: 0; background: transparent; color: #4275bb; font-size: 11px; padding: 2px 0; }
+.cloud-branch-count { color: #526987; font-weight: 650; white-space: nowrap; }
+.cloud-branch-panel { position: absolute; top: calc(100% - 1px); right: 24px; width: min(620px, calc(100vw - 48px)); max-height: min(440px, calc(100vh - 195px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #d9e2ee; border-radius: 0 0 9px 9px; background: #fff; box-shadow: 0 14px 32px #182a4826; z-index: 10; }
+.cloud-branch-panel-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 6px; color: #253a55; font-size: 12px; }
+.cloud-branch-panel-head span { color: #8290a3; font-size: 11px; }
+.cloud-branch-search { display: flex; align-items: center; gap: 6px; padding: 8px 16px 12px; color: #718097; font-size: 11px; }
+.cloud-branch-search input { flex: 1; }
+.cloud-branch-search button { padding: 0 11px; white-space: nowrap; }
+.cloud-branch-items { min-height: 0; overflow-y: auto; border-top: 1px solid #edf1f5; padding: 5px 8px 8px; }
+.cloud-branch-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; min-height: 46px; padding: 5px 8px; border-radius: 6px; }
+.cloud-branch-item:hover { background: #f5f8fc; }
+.cloud-branch-details { min-width: 0; }
+.cloud-branch-details strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #30445e; font-size: 12px; font-weight: 650; }
+.cloud-branch-details small { display: block; color: #93a0b1; font-size: 10px; margin-top: 3px; }
+.cloud-branch-item button { border: 1px solid #dce5f0; border-radius: 5px; background: #fff; color: #4c719e; padding: 5px 8px; font-size: 10px; white-space: nowrap; }
+.cloud-branch-item button:hover:not(:disabled) { background: #edf4ff; }
+.cloud-branch-item button:disabled { color: #a8b3c1; cursor: default; }
+.cloud-branch-empty { margin: 0; padding: 14px 8px; color: #8997a9; font-size: 11px; }
+.cloud-error { margin-top: 8px; color: #a12622; font-size: 12px; }
+
+.cloud-main { display: grid; grid-template-columns: 330px minmax(0, 1fr); min-height: 0; overflow: hidden; background: #fff; }
+.cloud-main .pane { min-height: 0; border-right: 1px solid #e3e8ef; background: #fff; }
+.cloud-main .pane:last-child { border-right: 0; }
+.cloud-main .pane-header { min-height: 54px; border-color: #e8ecf2; background: #fff; color: #34445a; font-size: 13px; letter-spacing: 0; text-transform: none; padding: 0 17px; }
+.cloud-main .pane-header .pane-meta { font-size: 11px; font-weight: 400; }
+.cloud-file-tools { padding: 12px 14px 10px; border-bottom: 1px solid #edf0f5; }
+.cloud-file-search { height: 34px; width: 100%; border: 1px solid #e0e6ee; border-radius: 6px; padding: 0 10px; outline: none; color: #25344b; font-size: 12px; }
+.cloud-file-filters { display: flex; gap: 5px; margin-top: 10px; }
+.cloud-file-filters button { border: 0; border-radius: 5px; background: transparent; color: #738197; padding: 6px 9px; font-size: 11px; font-weight: 650; }
+.cloud-file-filters button.active { background: #edf4ff; color: #2865c8; }
+.cloud-file-no-results { color: #8b98aa; font-size: 12px; padding: 25px 15px; text-align: center; }
+.cloud-main .tree-list { gap: 3px; }
+.cloud-main .tree-row { min-height: 32px; padding-top: 5px; padding-bottom: 5px; }
+.cloud-main .tree-row-selected { background: #eaf2ff; box-shadow: inset 3px 0 #2e6dce; }
+.cloud-main .tree-entry-directory .tree-directory-label { color: #69778a; font-size: 11px; font-weight: 650; }
+.cloud-main .tree-entry-file .tree-file-label { color: #34445a; font-size: 12px; font-weight: 600; }
+.cloud-main .diff-meta { min-height: 44px; border-color: #e8ecf2; background: #fff; padding: 7px 17px; }
+.cloud-main .diff-path { color: #617187; font-size: 11px; }
+
+@media (max-width: 1150px) {
+  .cloud-main { grid-template-columns: 290px minmax(0, 1fr); }
+  .cloud-toolbar-row { grid-template-columns: minmax(260px, 1.4fr) minmax(130px, .8fr) 18px minmax(140px, .8fr) auto; gap: 9px; }
+  .cloud-summary { width: 100%; margin-left: 0; }
+}
+
+@media (max-width: 760px) {
+  .codeup-page { height: auto; min-height: 100vh; grid-template-rows: 60px auto auto; }
+  .cloud-topbar { padding: 0 16px; }
+  .cloud-provider { display: none; }
+  .cloud-toolbar { padding: 14px 16px; }
+  .cloud-branch-panel { right: 16px; width: calc(100vw - 32px); }
+  .cloud-toolbar-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cloud-repository-field, .cloud-compare-button { grid-column: 1 / -1; }
+  .cloud-direction { display: none; }
+  .cloud-main { display: block; overflow: visible; }
+  .cloud-main .pane:first-child { height: 300px; border-right: 0; border-bottom: 1px solid #e3e8ef; }
+  .cloud-main .pane:last-child { height: 600px; }
+}
+
 .context-menu-item {
   display: block;
   width: 100%;

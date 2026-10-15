@@ -10,6 +10,12 @@ import { normalizeMonacoLanguage } from "./monacoLanguage";
 const MAX_REMEMBERED_FILES = 100;
 
 interface DiffViewerPaneProps {
+  leftLabel?: string;
+  rightLabel?: string;
+  emptyTitle?: string;
+  emptyMessage?: string;
+  renderSideBySide?: boolean;
+  readOnly?: boolean;
   diffFile: DiffFilePayload | null;
   draftContent: string;
   loading: boolean;
@@ -120,6 +126,12 @@ function hashContent(value: string) {
 }
 
 export function DiffViewerPane({
+  leftLabel,
+  rightLabel,
+  emptyTitle,
+  emptyMessage,
+  renderSideBySide = true,
+  readOnly = false,
   diffFile,
   draftContent,
   loading,
@@ -131,7 +143,7 @@ export function DiffViewerPane({
   const editorLanguage = normalizeMonacoLanguage(diffFile?.language);
   const diffEditorRef = useRef<MonacoDiffEditor | null>(null);
   const disposablesRef = useRef<{ dispose: () => void }[]>([]);
-  const isReadOnly = diffFile?.changeType === "deleted";
+  const isReadOnly = readOnly || diffFile?.changeType === "deleted";
   const pendingFoldAnchorRef = useRef<ViewAnchor | null>(null);
   const pendingRestoreRef = useRef<ViewAnchor | null>(null);
   const fileViewStatesRef = useRef(new Map<string, FileViewState>());
@@ -212,8 +224,8 @@ export function DiffViewerPane({
   return (
     <section className="pane pane-wide">
       <header className="pane-header">
-        <span>{selectedBranch ?? "Compare branch"}</span>
-        <span>Local</span>
+        <span>{leftLabel ?? selectedBranch ?? "Compare branch"}</span>
+        <span>{rightLabel ?? "Local"}</span>
       </header>
       <div className="pane-body pane-body-diff">
         {loading ? (
@@ -225,8 +237,8 @@ export function DiffViewerPane({
         ) : null}
         {!loading && !diffFile ? (
           <EmptyState
-            message="Select any changed file from the left panel and the side-by-side diff will appear here."
-            title="Diff preview is waiting for a selection"
+            message={emptyMessage ?? "Select any changed file from the left panel and the side-by-side diff will appear here."}
+            title={emptyTitle ?? "Diff preview is waiting for a selection"}
             tone="gentle"
           />
         ) : null}
@@ -304,6 +316,7 @@ export function DiffViewerPane({
                   fontSize: 12,
                   minimap: { enabled: false },
                   readOnly: isReadOnly,
+                  renderSideBySide,
                   hideUnchangedRegions: {
                     enabled: !showWholeFile,
                     contextLineCount: 3,

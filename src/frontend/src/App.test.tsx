@@ -524,6 +524,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await screen.findByText("old a => new a");
     fireEvent.contextMenu(await screen.findByRole("button", { name: "a.ts" }));
     fireEvent.click(screen.getByText("Copy absolute path"));
 
@@ -566,6 +567,7 @@ describe("App", () => {
 
     render(<App />);
 
+    await screen.findByText("old a => new a");
     fireEvent.contextMenu(await screen.findByRole("button", { name: "a.ts" }));
     fireEvent.click(screen.getByText("Copy absolute path"));
 

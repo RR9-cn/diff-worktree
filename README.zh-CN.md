@@ -1,66 +1,34 @@
 # diff-worktree
 
-`diff-worktree` 是一个从命令行启动的本地 Git 工作区审阅工具。它会在当前仓库启动一个本地 Web UI，用来把工作区和某个本地分支做并排 diff，适合在提交前检查改动、标记已审阅文件、快速处理不想保留的改动。
+`diff-worktree` 提供 Codeup 远端分支的只读比较页面。选择代码库、基准分支和目标分支后，可以查看变更文件树与并排差异。比较使用两个分支当时的提交 SHA，页面打开期间分支更新不会改变已显示的版本。
 
-![diff-worktree UI](docs/images/diff-worktree-ui.png)
+## 配置
 
-## 功能
+服务端需要以下环境变量：
 
-- 本地分支列表：展示仓库内的本地分支、当前分支、upstream 状态、ahead/behind 信息。
-- 工作区变更树：按目录展示工作区相对目标分支的新增、修改、删除、重命名文件。
-- 并排 diff：左侧是目标分支内容，右侧是本地工作区内容，使用 Monaco Editor 渲染。
-- 直接编辑工作区：右侧编辑器修改后会自动保存到本地文件。
-- 文件审阅进度：可以勾选文件为 reviewed，内容变化后审阅状态会自动失效。
-- 文件高亮规则：支持配置 glob 规则，例如高亮测试文件或指定目录。
-- 使用目标版本：在变更树中文件右键选择 `Use Remote`，可以用目标分支版本覆盖当前工作区文件。
-- 分支操作：支持刷新仓库状态、快进更新可更新的本地分支、删除非当前本地分支。
-
-## 使用
-
-在 Git 仓库目录中运行：
-
-```sh
-npx diff-worktree
-```
-
-启动后会输出本地访问地址，并默认打开浏览器。
-
-也可以指定仓库路径：
-
-```sh
-npx diff-worktree /path/to/repo
-```
-
-常用参数：
-
-```sh
-npx diff-worktree --port 3000
-npx diff-worktree --no-open
-```
-
-| 参数 | 说明 |
+| 变量 | 用途 |
 | --- | --- |
-| `[cwd]` | 要打开的 Git 仓库路径，默认是当前目录 |
-| `--port <port>` | 指定本地 Web 服务端口，默认自动选择可用端口 |
-| `--no-open` | 启动后不自动打开浏览器 |
+| `CODEUP_BASE_URL` | OpenAPI 的 HTTPS 接入地址；中心版默认使用 `https://openapi-rdc.aliyuncs.com`，Region 版必填 |
+| `CODEUP_TOKEN` | 具有代码库只读权限的个人访问令牌 |
+| `CODEUP_ORGANIZATION_ID` | 中心版组织 ID；Region 版留空 |
+| `CODEUP_APP_USER`、`CODEUP_APP_PASSWORD` | 页面访问凭据；监听非本机地址时必填 |
 
-## 工作方式
+Codeup 访问令牌仅由服务端向 Codeup 发送，浏览器页面不会收到令牌。监听非本机地址时，服务启用 HTTP Basic 身份认证；正式部署需要在前置代理终止 HTTPS，并通过 `--host` 指定监听地址。
 
-1. 在左侧选择一个本地分支作为目标分支。
-2. 中间面板会展示当前工作区相对该分支的文件变更。
-3. 选择文件后，右侧会显示目标分支和本地工作区的并排 diff。
-4. 修改右侧内容会直接写回工作区文件。
-5. 勾选文件可以标记审阅完成，顶部会显示审阅进度。
+## 从源码运行
 
-## 本地开发
-
-```sh
-pnpm install
-pnpm run dev
-```
-
-构建发布包：
-
-```sh
+```powershell
+pnpm install --frozen-lockfile
 pnpm run build
+$env:CODEUP_TOKEN = "<read-only-token>"
+$env:CODEUP_ORGANIZATION_ID = "<organization-id>"
+node dist/main.js --no-open
 ```
+
+Region 版省略 `CODEUP_ORGANIZATION_ID`，并设置 `CODEUP_BASE_URL`。服务默认监听 `127.0.0.1` 的可用端口；可用 `--port` 和 `--host` 指定端口及地址。
+
+## 比较方式
+
+服务从 Codeup 查询仓库和分支，以基准分支、目标分支的提交 SHA 调用 `GetCompare`，并设置 `straight=true`。选择文件时，按各自的提交 SHA 读取两侧文件内容。新增、删除、重命名文件分别处理；二进制文件及超过 256 KiB 的文件显示提示。
+
+当前版本仅实现 Codeup；GitLab 接入和真实 Codeup 实例联调尚未完成。

@@ -219,7 +219,7 @@ describe("updateLocalBranch", () => {
       behind: 0,
       syncStatus: "upToDate",
     });
-    expect(fs.readFileSync(path.join(repoRoot, "behind.txt"), "utf8")).toBe("behind\n");
+    expect(fs.readFileSync(path.join(repoRoot, "behind.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("behind\n");
   });
 
   it("rejects updating a diverged branch", async () => {

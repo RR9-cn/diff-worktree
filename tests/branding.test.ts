@@ -23,7 +23,7 @@ describe("project branding", () => {
     expect(rootPackage.bin).toEqual({ "diff-worktree": "dist/main.js" });
     expect(frontendPackage.name).toBe("diff-worktree-frontend");
     expect(readFile("src/cli/main.ts")).toContain('cac("diff-worktree")');
-    expect(readFile("src/cli/commands/start.ts")).toContain("Start diff-worktree for the current repository");
+    expect(readFile("src/cli/commands/start.ts")).toContain("Start diff-worktree for Codeup branch comparison");
     expect(readFile("src/frontend/index.html")).toContain("<title>diff-worktree</title>");
   });
 });

@@ -2,16 +2,16 @@ import type { CAC } from "cac";
 import type { Server } from "node:http";
 import open from "open";
 
-import { createServer } from "../../server/createServer";
-import { findRepoRoot } from "../../server/services/repoLocator";
+import { createCodeupServer } from "../../server/codeup/createCodeupServer";
+import { codeupConfigFromEnv } from "../../server/codeup/codeupService";
 
 function resolvePort(value?: string): number {
   if (!value) {
     return 0;
   }
 
-  const port = Number.parseInt(value, 10);
-  if (Number.isNaN(port) || port <= 0) {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error(`Invalid port: ${value}`);
   }
 
@@ -20,20 +20,22 @@ function resolvePort(value?: string): number {
 
 export function registerStartCommand(cli: CAC) {
   cli
-    .command("[cwd]", "Start diff-worktree for the current repository")
+    .command("", "Start diff-worktree for Codeup branch comparison")
     .option("--port <port>", "Port for the local web server")
+    .option("--host <host>", "Address to listen on (default: 127.0.0.1)")
     .option("--no-open", "Do not open a browser window")
-    .action(async (cwd: string | undefined, options: { port?: string; open?: boolean }) => {
-      const repoRoot = findRepoRoot(cwd ?? process.cwd());
-      if (!repoRoot) {
-        throw new Error("No Git repository found from the current directory upward.");
-      }
-
-      const app = createServer({ repoRoot });
+    .action(async (options: { port?: string; host?: string; open?: boolean }) => {
       const port = resolvePort(options.port ?? process.env.PORT);
+      const host = options.host ?? process.env.DIFF_WORKTREE_HOST ?? "127.0.0.1";
+      const user = process.env.CODEUP_APP_USER?.trim();
+      const password = process.env.CODEUP_APP_PASSWORD;
+      if (!["127.0.0.1", "localhost", "::1"].includes(host) && (!user || !password)) {
+        throw new Error("CODEUP_APP_USER and CODEUP_APP_PASSWORD are required for non-loopback hosts.");
+      }
+      const app = createCodeupServer(codeupConfigFromEnv(), fetch, user && password ? { user, password } : undefined);
 
       const server = await new Promise<Server>((resolve, reject) => {
-        const nextServer = app.listen(port, () => {
+        const nextServer = app.listen(port, host, () => {
           resolve(nextServer);
         });
 

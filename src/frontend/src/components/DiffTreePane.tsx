@@ -6,6 +6,11 @@ import type { DiffTreeNode } from "../types";
 import { matchesHighlightPattern } from "../utils/highlightPatterns";
 
 interface DiffTreePaneProps {
+  comparisonLabel?: string;
+  title?: string;
+  showFilters?: boolean;
+  emptyTitle?: string;
+  emptyMessage?: string;
   highlightFilePatterns?: string[];
   highlightFilesEnabled?: boolean;
   nodes: DiffTreeNode[];
@@ -33,15 +38,17 @@ interface ContextMenuState {
   node: DiffTreeNode;
 }
 
-function TreeEmptyState({ branchName }: { branchName?: string }) {
+function TreeEmptyState({ branchName, comparisonLabel, emptyTitle, emptyMessage }: { branchName?: string; comparisonLabel?: string; emptyTitle?: string; emptyMessage?: string }) {
   return (
     <div className="empty-state-shell empty-state-shell-centered">
       <div className="empty-state-card empty-state-card-subtle">
-        <h3 className="empty-state-title">No file changes to review</h3>
+        <h3 className="empty-state-title">{emptyTitle ?? (comparisonLabel || emptyMessage ? "No file changes" : "No file changes to review")}</h3>
         <p className="empty-state-description">
-          {branchName
+          {emptyMessage ?? (comparisonLabel
+            ? `The selected versions match: ${comparisonLabel}.`
+            : branchName
             ? `The workspace currently matches ${branchName}. Switch branches or make edits to inspect a new diff.`
-            : "The workspace currently matches the selected baseline. Switch branches or make edits to inspect a new diff."}
+            : "The workspace currently matches the selected baseline. Switch branches or make edits to inspect a new diff.")}
         </p>
       </div>
     </div>
@@ -137,6 +144,26 @@ function collectReviewableFiles(nodes: DiffTreeNode[], acc: DiffTreeNode[] = [])
   return acc;
 }
 
+function collectFiles(nodes: DiffTreeNode[], acc: DiffTreeNode[] = []): DiffTreeNode[] {
+  for (const node of nodes) {
+    if (node.type === "file") acc.push(node);
+    else collectFiles(node.children ?? [], acc);
+  }
+  return acc;
+}
+
+function filterNodes(nodes: DiffTreeNode[], query: string, changeType: string): DiffTreeNode[] {
+  return nodes.flatMap((node) => {
+    if (node.type === "file") {
+      return (changeType === "all" || node.changeType === changeType) && node.path.toLocaleLowerCase().includes(query)
+        ? [node]
+        : [];
+    }
+    const children = filterNodes(node.children ?? [], query, changeType);
+    return children.length > 0 ? [{ ...node, children }] : [];
+  });
+}
+
 function flattenVisibleNodes(
   nodes: DiffTreeNode[],
   collapsedPaths: Set<string>,
@@ -182,6 +209,11 @@ function focusItem(
 }
 
 export function DiffTreePane({
+  comparisonLabel,
+  title,
+  showFilters = false,
+  emptyTitle,
+  emptyMessage,
   highlightFilePatterns = [],
   highlightFilesEnabled = false,
   nodes,
@@ -197,15 +229,22 @@ export function DiffTreePane({
 }: DiffTreePaneProps) {
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [fileQuery, setFileQuery] = useState("");
+  const [fileType, setFileType] = useState("all");
   // Keyed by reviewHash so an optimistic toggle survives tree reloads, yet
   // stops applying once a file's content (and thus its hash) changes.
   const [reviewOverrides, setReviewOverrides] = useState<Map<string, boolean>>(new Map());
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const activePath = selectedPath ?? selectedFilePath;
-  const visibleNodes = flattenVisibleNodes(nodes, collapsedPaths);
+  const normalizedQuery = fileQuery.trim().toLocaleLowerCase();
+  const filteredNodes = showFilters ? filterNodes(nodes, normalizedQuery, fileType) : nodes;
+  const visibleNodes = flattenVisibleNodes(filteredNodes, normalizedQuery || fileType !== "all" ? new Set() : collapsedPaths);
+  const allFiles = collectFiles(nodes);
+  const addedCount = allFiles.filter((node) => node.changeType === "added").length;
+  const modifiedCount = allFiles.filter((node) => node.changeType === "modified").length;
   const reviewableFiles = collectReviewableFiles(nodes);
-  const branchHeaderLabel = selectedBranch ? `${selectedBranch} vs workspace` : "no branch";
+  const branchHeaderLabel = title ?? comparisonLabel ?? (selectedBranch ? `${selectedBranch} vs workspace` : "no branch");
 
   function isReviewed(node: DiffTreeNode) {
     if (!node.reviewHash) {
@@ -302,6 +341,7 @@ export function DiffTreePane({
   }
 
   function handleContextMenu(event: MouseEvent<HTMLButtonElement>, node: DiffTreeNode) {
+    if (!onCopyAbsolutePath && !onUseRemote) return;
     event.preventDefault();
     // Keep the window-level "contextmenu" closer from shutting the menu we are opening.
     event.stopPropagation();
@@ -372,16 +412,28 @@ export function DiffTreePane({
         <span className="pane-meta pane-meta-truncate" title={branchHeaderLabel}>
           {branchHeaderLabel}
         </span>
-        {reviewableFiles.length > 0 ? (
+        {showFilters ? <span className="pane-meta">{allFiles.length} 个文件</span> : null}
+        {!showFilters && reviewableFiles.length > 0 ? (
           <span className="pane-meta tree-review-progress">
             {reviewedCount}/{reviewableFiles.length} reviewed
           </span>
         ) : null}
       </header>
+      {showFilters ? (
+        <div className="cloud-file-tools">
+          <input aria-label="查找文件" className="cloud-file-search" onChange={(event) => setFileQuery(event.target.value)} placeholder="查找文件名称或目录" value={fileQuery} />
+          <div className="cloud-file-filters" aria-label="文件类型">
+            <button aria-pressed={fileType === "all"} className={fileType === "all" ? "active" : ""} onClick={() => setFileType("all")} type="button">全部 {allFiles.length}</button>
+            <button aria-pressed={fileType === "added"} className={fileType === "added" ? "active" : ""} onClick={() => setFileType("added")} type="button">新增 {addedCount}</button>
+            <button aria-pressed={fileType === "modified"} className={fileType === "modified" ? "active" : ""} onClick={() => setFileType("modified")} type="button">修改 {modifiedCount}</button>
+          </div>
+        </div>
+      ) : null}
       <div className={`pane-body${!loading && nodes.length === 0 ? " pane-body-empty" : ""}`}>
         {loading ? <div className="empty-state">Loading diff tree...</div> : null}
-        {!loading && nodes.length === 0 ? <TreeEmptyState branchName={selectedBranch} /> : null}
-        {!loading && nodes.length > 0 ? (
+        {!loading && nodes.length === 0 ? <TreeEmptyState branchName={selectedBranch} comparisonLabel={comparisonLabel} emptyTitle={emptyTitle} emptyMessage={emptyMessage} /> : null}
+        {!loading && nodes.length > 0 && filteredNodes.length === 0 ? <div className="cloud-file-no-results">没有符合条件的文件</div> : null}
+        {!loading && filteredNodes.length > 0 ? (
           <div className="tree-list">
             {visibleNodes.map((item) => {
               const selected = activePath === item.node.path;
